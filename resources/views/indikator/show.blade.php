@@ -3527,81 +3527,132 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     downloadPngButton.addEventListener('click', function () {
-        if (!chart) return;
+        if (!chart) {
+            console.error('Chart belum tersedia.');
+            return;
+        }
 
         const filtered = getFilteredData();
 
-        if (filtered.length === 0) return;
+        if (filtered.length === 0) {
+            console.warn('Tidak ada data untuk diunduh.');
+            return;
+        }
 
-        const chartImage = new Image();
+        try {
+            const chartImage = new Image();
 
-        chartImage.onload = function () {
-            const exportCanvas = document.createElement('canvas');
-            const ctx = exportCanvas.getContext('2d');
+            chartImage.onload = function () {
+                const exportCanvas = document.createElement('canvas');
+                const ctx = exportCanvas.getContext('2d');
 
-            exportCanvas.width = 1600;
-            exportCanvas.height = 900;
+                if (!ctx) {
+                    console.error('Canvas export tidak dapat dibuat.');
+                    return;
+                }
 
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                const width = 1600;
+                const height = 900;
 
-            ctx.fillStyle = '#173a6b';
-            ctx.font = 'bold 32px Arial';
-            ctx.fillText(indicatorName, 70, 75);
+                exportCanvas.width = width;
+                exportCanvas.height = height;
 
-            ctx.fillStyle = '#64748b';
-            ctx.font = '18px Arial';
+                // Background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
 
-            const comparisonLabel =
-                isYoyMom
-                    ? (comparisonMode === 'yoy' ? 'Y to Y' : 'M to M')
-                    : '';
+                // Judul indikator
+                ctx.fillStyle = '#173a6b';
+                ctx.font = 'bold 32px Arial';
+                ctx.fillText(indicatorName, 70, 75);
 
-            ctx.fillText(
-                indicatorUnit
-                    + (comparisonLabel ? ' · ' + comparisonLabel : ''),
-                70,
-                108
-            );
+                // Satuan dan mode perbandingan
+                ctx.fillStyle = '#64748b';
+                ctx.font = '18px Arial';
 
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '16px Arial';
-            ctx.fillText(
-                indicatorSource,
-                70,
-                138
-            );
+                const comparisonLabel =
+                    isYoyMom
+                        ? (comparisonMode === 'yoy' ? 'Y to Y' : 'M to M')
+                        : '';
 
-            ctx.drawImage(
-                chartImage,
-                70,
-                175,
-                1460,
-                620
-            );
+                ctx.fillText(
+                    indicatorUnit
+                        + (comparisonLabel ? ' · ' + comparisonLabel : ''),
+                    70,
+                    108
+                );
 
-            ctx.fillStyle = '#64748b';
-            ctx.font = '14px Arial';
-            ctx.fillText(
-                'WIN – Wonosobo Indicator Navigator',
-                70,
-                845
-            );
+                // Sumber data
+                const indicatorSource = @json(
+                    $terbaru?->sumberData?->nama_sumber
+                    ?? 'BPS Kabupaten Wonosobo'
+                );
 
-            const link = document.createElement('a');
-            link.download =
-                indicatorName
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    + '-'
-                    + (comparisonLabel || 'grafik')
-                    + '.png';
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '16px Arial';
+                ctx.fillText(indicatorSource, 70, 138);
 
-            link.href = exportCanvas.toDataURL('image/png');
-            link.click();
-        };
+                // Gambar grafik Chart.js
+                ctx.drawImage(
+                    chartImage,
+                    70,
+                    175,
+                    1460,
+                    620
+                );
 
-        chartImage.src = chart.toBase64Image();
+                // Footer
+                ctx.fillStyle = '#64748b';
+                ctx.font = '14px Arial';
+                ctx.fillText(
+                    'WIN – Wonosobo Indicator Navigator',
+                    70,
+                    845
+                );
+
+                // Buat PNG menggunakan Blob agar lebih kompatibel
+                // dengan browser dibanding langsung toDataURL().
+                exportCanvas.toBlob(function (blob) {
+                    if (!blob) {
+                        console.error('Gagal membuat file PNG.');
+                        return;
+                    }
+
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+
+                    const safeName = indicatorName
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '');
+
+                    link.href = url;
+                    link.download =
+                        safeName
+                        + '-'
+                        + (comparisonLabel || 'grafik')
+                        + '.png';
+
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    setTimeout(function () {
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+                }, 'image/png');
+            };
+
+            chartImage.onerror = function () {
+                console.error('Gagal mengambil gambar grafik.');
+            };
+
+            // Ambil gambar dari Chart.js.
+            chartImage.src = chart.toBase64Image();
+
+        } catch (error) {
+            console.error('Download grafik gagal:', error);
+        }
     });
 
     renderChart();
